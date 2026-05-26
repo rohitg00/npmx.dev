@@ -25,7 +25,7 @@ if (!profile.value || profileError.value?.statusCode === 404) {
   })
 }
 
-const { user, pending: userPending } = useAtproto()
+const { user } = useAtproto()
 const isEditing = ref(false)
 const displayNameInput = ref()
 const descriptionInput = ref()
@@ -86,8 +86,8 @@ const showInviteSection = computed(() => {
     profile.value.recordExists === false &&
     status.value === 'success' &&
     !likes.value?.records?.length &&
-    !userPending.value &&
-    user.value?.handle !== profile.value.handle
+    user.value &&
+    user.value.handle !== profile.value.handle
   )
 })
 
