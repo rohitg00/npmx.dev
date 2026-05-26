@@ -1,15 +1,22 @@
 import { mockNuxtImport, mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { useAtproto } from '~/composables/atproto/useAtproto'
 
-const { mockUseAtproto, mockUseProfileLikes } = vi.hoisted(() => ({
-  mockUseAtproto: vi.fn(),
+const { mockUseProfileLikes } = vi.hoisted(() => ({
   mockUseProfileLikes: vi.fn(),
 }))
 
-mockNuxtImport('useAtproto', () => mockUseAtproto)
 mockNuxtImport('useProfileLikes', () => mockUseProfileLikes)
 
 import ProfilePage from '~/pages/profile/[identity]/index.vue'
+
+function createAtprotoUser(handle: string) {
+  return {
+    did: `did:plc:${handle}`,
+    handle,
+    pds: 'https://bsky.social',
+  }
+}
 
 registerEndpoint('/api/social/profile/test-handle', () => ({
   displayName: 'Test User',
@@ -21,16 +28,14 @@ registerEndpoint('/api/social/profile/test-handle', () => ({
 
 describe('Profile invite section', () => {
   beforeEach(() => {
-    mockUseAtproto.mockReset()
+    const { user } = useAtproto()
+    user.value = null
     mockUseProfileLikes.mockReset()
   })
 
   it('does not show invite section while auth is still loading', async () => {
-    mockUseAtproto.mockReturnValue({
-      user: ref(null),
-      pending: ref(true),
-      logout: vi.fn(),
-    })
+    const { user } = useAtproto()
+    user.value = undefined
 
     mockUseProfileLikes.mockReturnValue({
       data: ref({ records: [] }),
@@ -45,11 +50,8 @@ describe('Profile invite section', () => {
   })
 
   it('shows invite section after auth resolves for non-owner', async () => {
-    mockUseAtproto.mockReturnValue({
-      user: ref({ handle: 'other-user' }),
-      pending: ref(false),
-      logout: vi.fn(),
-    })
+    const { user } = useAtproto()
+    user.value = createAtprotoUser('other-user')
 
     mockUseProfileLikes.mockReturnValue({
       data: ref({ records: [] }),
@@ -64,11 +66,8 @@ describe('Profile invite section', () => {
   })
 
   it('does not show invite section for profile owner', async () => {
-    mockUseAtproto.mockReturnValue({
-      user: ref({ handle: 'test-handle' }),
-      pending: ref(false),
-      logout: vi.fn(),
-    })
+    const { user } = useAtproto()
+    user.value = createAtprotoUser('test-handle')
 
     mockUseProfileLikes.mockReturnValue({
       data: ref({ records: [] }),

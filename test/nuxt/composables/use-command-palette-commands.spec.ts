@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { computed, defineComponent, h, ref, watchEffect, type Ref } from 'vue'
 import type { RouteLocationRaw } from 'vue-router'
-import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
+import { mockNuxtImport, mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime'
+import { useAtproto } from '~/composables/atproto/useAtproto'
 import { downloadPackageTarball } from '~/utils/package-download'
 import type {
   CommandPaletteCommand,
@@ -23,22 +24,21 @@ const mockConnectorState = ref<{
   npmUser: null,
 })
 
-const mockAtprotoHandle = ref<string | null>(null)
 const mockDisconnectNpm = vi.fn()
-const mockLogout = vi.fn(async () => {})
+
+function createAtprotoUser(handle: string) {
+  return {
+    did: `did:plc:${handle}`,
+    handle,
+    pds: 'https://bsky.social',
+  }
+}
 
 mockNuxtImport('useConnector', () => {
   return () => ({
     isConnected: computed(() => mockConnectorState.value.connected),
     npmUser: computed(() => mockConnectorState.value.npmUser),
     disconnect: mockDisconnectNpm,
-  })
-})
-
-mockNuxtImport('useAtproto', () => {
-  return () => ({
-    user: computed(() => (mockAtprotoHandle.value ? { handle: mockAtprotoHandle.value } : null)),
-    logout: mockLogout,
   })
 })
 
@@ -62,7 +62,8 @@ async function captureCommandPalette(options?: {
     connected: !!options?.npmUser,
     npmUser: options?.npmUser ?? null,
   }
-  mockAtprotoHandle.value = options?.atprotoHandle ?? null
+  const { user } = useAtproto()
+  user.value = options?.atprotoHandle ? createAtprotoUser(options.atprotoHandle) : null
 
   const WrapperComponent = defineComponent({
     setup() {
@@ -122,7 +123,8 @@ afterEach(() => {
     connected: false,
     npmUser: null,
   }
-  mockAtprotoHandle.value = null
+  const { user } = useAtproto()
+  user.value = null
   vi.clearAllMocks()
 })
 
@@ -312,6 +314,12 @@ describe('useCommandPaletteCommands', () => {
   })
 
   it('adds atproto account commands and disconnect support when a profile is connected', async () => {
+    const deleteSession = vi.fn(() => null)
+    registerEndpoint('/api/auth/session', {
+      method: 'DELETE',
+      handler: deleteSession,
+    })
+
     const { wrapper, flatCommands } = await captureCommandPalette({
       route: '/profile/alice.bsky.social',
       atprotoHandle: 'alice.bsky.social',
@@ -324,7 +332,7 @@ describe('useCommandPaletteCommands', () => {
 
     await flatCommands.value.find(command => command.id === 'atproto-disconnect')?.action?.()
 
-    expect(mockLogout).toHaveBeenCalledTimes(1)
+    expect(deleteSession).toHaveBeenCalledTimes(1)
     expect(commandPalette.isOpen.value).toBe(false)
 
     wrapper.unmount()
